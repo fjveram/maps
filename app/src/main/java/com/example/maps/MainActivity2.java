@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.widget.EditText;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -19,11 +20,21 @@ import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.material.slider.Slider;
 
-import java.util.ArrayList;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallback {
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+import WebServices.Asynchtask;
+import WebServices.WebService;
+
+public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallback, Asynchtask {
     GoogleMap Mapa;
     Double lat, lng;
     float radio;
@@ -56,6 +67,20 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
         txtLatitud = findViewById(R.id.txtLatitud);
         txtLongitud = findViewById(R.id.txtLongitud);
         sliderRadio = findViewById(R.id.sliderRadio);
+        sliderRadio.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
+            @Override
+            public void onStartTrackingTouch(@NonNull Slider slider) {
+                radio = slider.getValue();
+                updateInterfaz();
+            }
+
+            @Override
+            public void onStopTrackingTouch(@NonNull Slider slider) {
+
+            }
+        });
+
+
 
     }
 
@@ -68,7 +93,7 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
         CameraUpdate camUpd1 =
                 CameraUpdateFactory
                         .newLatLngZoom(Quevedo,
-                                15);
+                                17);
         Mapa.animateCamera(camUpd1);
         Mapa.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
             @Override
@@ -95,6 +120,39 @@ public class MainActivity2 extends AppCompatActivity implements OnMapReadyCallba
 
         circulo = Mapa.addCircle(circleOptions);
 
+        //Actualizar los marcadores
+        Map<String, String> datos = new HashMap<String, String>();
+        WebService ws= new WebService(
+                "https://turismoquevedo.com/lugar_turistico/json_getlistadoMapa?lat=" + lat +   "&lng=" + lng +"&radio=" + (radio/10.0)  ,datos,
+
+                MainActivity2.this, MainActivity2.this);
+        ws.execute("GET");
+
+
     }
 
+
+    @Override
+    public void processFinish(String result) throws JSONException {
+        for (Marker marker : markers) marker.remove();
+        markers.clear();
+
+        JSONObject JSONobj= new JSONObject(result);
+        JSONArray jsonLista = JSONobj.getJSONArray("data");
+        for(int i=0; i< jsonLista.length(); i++){
+            JSONObject lugar= jsonLista.getJSONObject(i);
+            markers.add(Mapa.addMarker(
+                    new MarkerOptions().position(
+                            new LatLng(lugar.getDouble("lat"), lugar.getDouble("lng"))
+                    ).title(lugar.get("nombre").toString())));
+        }
+        Mapa.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                marker.showInfoWindow();
+                return true;
+            }
+        });
+
+    }
 }
